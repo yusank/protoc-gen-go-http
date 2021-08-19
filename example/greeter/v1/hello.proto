@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package greeter.service.v1;
+option go_package = "example/greeter/v1;v1";
+
+// 下载 `github.com/googleapis/googleapis` 至`GOPATH`, 生成 http 代码需要。
+import "google/api/annotations.proto";
+
+service Hello {
+  rpc Add(AddRequest) returns (AddResponse) {
+    option (google.api.http) = {
+      post: "/api/hello/service/v1/add"
+      body: "*"
+    };
+  }
+
+  rpc Get(GetRequest) returns (GetResponse) {
+    option (google.api.http) = {
+      get: "/api/hello/service/v1/get"
+    };
+  }
+}
+
+message AddRequest {
+  uint32 id = 1;
+  string name = 2;
+}
+
+message AddResponse {
+  uint32 id = 1;
+  string name = 2;
+}
+
+message GetRequest {
+  uint32 id = 1;
+}
+
+message GetResponse {
+  uint32 id = 1;
+  string name = 2;
+  float score = 3;
+  bytes bs = 4;
+  map<string, string> m = 5;
+}
