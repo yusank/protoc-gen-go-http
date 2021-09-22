@@ -15,11 +15,6 @@ var _ context.Context
 
 const _ = gin.Version
 
-// Validator defines params validate
-type Validator interface {
-	Validate() error
-}
-
 // 这里定义 handler interface
 type HelloHTTPHandler interface {
 	Add(context.Context, *AddRequest) (*AddResponse, error)
@@ -84,4 +79,40 @@ func _Hello_Get0_HTTP_Handler(srv HelloHTTPHandler) func(c *gin.Context) {
 
 		c.JSON(200, out)
 	}
+}
+
+// Client defines call remote server client and implement selector
+type Client interface {
+	Call(ctx context.Context, req, rsp interface{}) error
+}
+
+// HelloHTTPClient defines call HelloServer client
+type HelloHTTPClient interface {
+	Add(context.Context, *AddRequest) (*AddResponse, error)
+	Get(context.Context, *GetRequest) (*GetResponse, error)
+}
+
+// HelloHTTPClientImpl implement HelloHTTPClient
+type HelloHTTPClientImpl struct {
+	cli Client
+}
+
+func NewHelloHTTPClient(cli Client) HelloHTTPClient {
+	return &HelloHTTPClientImpl{
+		cli: cli,
+	}
+}
+
+func (c *HelloHTTPClientImpl) Add(ctx context.Context, req *AddRequest) (resp *AddResponse, err error) {
+	resp = new(AddResponse)
+	err = c.cli.Call(ctx, req, resp)
+
+	return
+}
+
+func (c *HelloHTTPClientImpl) Get(ctx context.Context, req *GetRequest) (resp *GetResponse, err error) {
+	resp = new(GetResponse)
+	err = c.cli.Call(ctx, req, resp)
+
+	return
 }

@@ -8,7 +8,7 @@ var ginTemplate = `
 
 // 这里定义 handler interface
 type {{.ServiceType}}HTTPHandler interface {
-{{- range .MethodSets}}
+{{- range .Methods}}
     {{.Name}}(context.Context, *{{.Request}}) (*{{.Reply}}, error)
 {{- end}}
 }
@@ -47,6 +47,37 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPHandler) f
         
         c.JSON(200, out)
     }
+}
+{{end}}
+// Client defines call remote server client and implement selector
+type Client interface{
+  Call(ctx context.Context, req, rsp interface{}) error
+}
+
+// {{.ServiceType}}HTTPClient defines call {{.ServiceType}}Server client
+type {{.ServiceType}}HTTPClient interface {
+{{- range .Methods}}
+    {{.Name}}(context.Context, *{{.Request}}) (*{{.Reply}}, error)
+{{- end}}
+}
+
+// {{.ServiceType}}HTTPClientImpl implement {{.ServiceType}}HTTPClient
+type {{.ServiceType}}HTTPClientImpl struct {
+	cli Client
+}
+
+func New{{.ServiceType}}HTTPClient(cli Client) {{.ServiceType}}HTTPClient {
+	return &{{.ServiceType}}HTTPClientImpl{
+		cli: cli,
+	}
+}
+
+{{range .Methods}}
+func (c *{{$svrType}}HTTPClientImpl) {{.Name}}(ctx context.Context, req *{{.Request}})(resp *{{.Reply}} ,err error) {
+	resp = new({{.Reply}})
+	err = c.cli.Call(ctx, req, resp)
+
+	return
 }
 {{end}}
 `

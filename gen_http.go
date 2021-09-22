@@ -13,7 +13,6 @@ type serviceDesc struct {
 	Metadata    string // api/helloworld/helloworld.proto
 	GenValidate bool
 	Methods     []*methodDesc
-	MethodSets  map[string]*methodDesc
 }
 
 // rpc 方法信息
@@ -35,10 +34,6 @@ type methodDesc struct {
 // execute 方法实现也其实不复杂，总起来就是 go 的 temple 包的使用
 // 提前写好模板文件，然后拿到所有需要的变量，进行模板渲染，写入文件
 func (s *serviceDesc) execute() string {
-	s.MethodSets = make(map[string]*methodDesc)
-	for _, m := range s.Methods {
-		s.MethodSets[m.Name] = m
-	}
 	buf := new(bytes.Buffer)
 	tmpl, err := template.New("http_server").Parse(strings.TrimSpace(ginTemplate))
 	if err != nil {
