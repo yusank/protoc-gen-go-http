@@ -1,7 +1,8 @@
 package main
 
 // TODO: support validate
-var ginTemplate = `
+var httpCodeTmpl = `
+{{/*gotype: github.com/yusank/protoc-gen-go-http.serviceDesc*/}}
 {{$svrType := .ServiceType}}
 {{$svrName := .ServiceName}}
 {{$validate := .GenValidate}}
@@ -13,13 +14,19 @@ type {{.ServiceType}}HTTPHandler interface {
 {{- end}}
 }
 
-// Register{{.ServiceType}}HTTPHandler define http router handle by gin. 
+// Register{{.ServiceType}}HTTPHandler define http router handle by gin.
 // 注册路由 handler
 func Register{{.ServiceType}}HTTPHandler(g *gin.RouterGroup, srv {{.ServiceType}}HTTPHandler) {
-    {{- range .Methods}}
+{{- range .Methods}}
     g.{{.Method}}("{{.Path}}", _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv))
-    {{- end}}
+{{- end}}
 }
+
+{{if $validate}}
+type Validator interface {
+    Validate() error
+}
+{{end}}
 
 // 定义 handler
 // 遍历之前解析到所有 rpc 方法信息
@@ -27,57 +34,94 @@ func Register{{.ServiceType}}HTTPHandler(g *gin.RouterGroup, srv {{.ServiceType}
 func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPHandler) func(c *gin.Context) {
     return func(c *gin.Context) {
         var (
-			err error
+            err error
             in  = new({{.Request}})
             out = new({{.Reply}})
             ctx = context.TODO()
         )
 
         if err = c.ShouldBind(in{{.Body}}); err != nil {
-            c.AbortWithStatusJSON(400, gin.H{"err": err.Error()})
+            c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"err": err.Error()})
             return
         }
-
+        {{if $validate}}
+        v,ok := interface{}(in).(Validator)
+        if ok {
+            if err = v.Validate();err != nil {
+                c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"err": err.Error()})
+                return
+            }
+        }
+        {{end}}
         // execute
         out, err = srv.{{.Name}}(ctx, in)
         if err != nil {
-            c.AbortWithStatusJSON(500, gin.H{"err": err.Error()})
+            c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"err": err.Error()})
             return
         }
-        
-        c.JSON(200, out)
+
+        c.JSON(http.StatusOK, out)
     }
 }
 {{end}}
-// Client defines call remote server client and implement selector
-type Client interface{
-  Call(ctx context.Context, req, rsp interface{}) error
-}
-
 // {{.ServiceType}}HTTPClient defines call {{.ServiceType}}Server client
 type {{.ServiceType}}HTTPClient interface {
 {{- range .Methods}}
-    {{.Name}}(context.Context, *{{.Request}}) (*{{.Reply}}, error)
+    {{.Name}}(ctx context.Context, req *{{.Request}}, opts ...phttp.CallOption) (*{{.Reply}}, error)
 {{- end}}
 }
 
 // {{.ServiceType}}HTTPClientImpl implement {{.ServiceType}}HTTPClient
 type {{.ServiceType}}HTTPClientImpl struct {
-	cli Client
+    cli *restyv2.Client
+    clientOpts []phttp.ClientOption
 }
 
-func New{{.ServiceType}}HTTPClient(cli Client) {{.ServiceType}}HTTPClient {
-	return &{{.ServiceType}}HTTPClientImpl{
-		cli: cli,
-	}
+func New{{.ServiceType}}HTTPClient(cli *http.Client, opts ...phttp.ClientOption) ({{.ServiceType}}HTTPClient, error) {
+    c := &{{.ServiceType}}HTTPClientImpl{
+        clientOpts: opts,
+    }
+
+    hc := cli
+    if hc == nil {
+        hc = http.DefaultClient
+    }
+
+    c.cli = restyv2.NewWithClient(hc)
+    for _, opt := range opts {
+        if err := opt.Apply(c.cli);err != nil {
+            return nil, err
+        }
+    }
+
+    return c, nil
 }
 
 {{range .Methods}}
-func (c *{{$svrType}}HTTPClientImpl) {{.Name}}(ctx context.Context, req *{{.Request}})(resp *{{.Reply}} ,err error) {
-	resp = new({{.Reply}})
-	err = c.cli.Call(ctx, req, resp)
+// {{.Name}} is call [{{.Method}}] {{.Path}} api.
+func (c *{{$svrType}}HTTPClientImpl) {{.Name}}(ctx context.Context, req *{{.Request}}, opts ...phttp.CallOption)(rsp *{{.Reply}} ,err error) {
+    rsp = new({{.Reply}})
 
-	return
+    r := c.cli.R()
+    for _, opt := range opts {
+        if err = opt.Before(r);err != nil {
+            return
+        }
+    }
+    // set response data struct.
+    r.SetResult(rsp)
+    // do request
+    restyResp,err := r.Execute("{{.Method}}", "{{.Path}}")
+    if err != nil {
+        return nil, err
+    }
+    for _, opt := range opts {
+        if err = opt.After(restyResp);err != nil {
+            return
+        }
+    }
+
+    return
 }
 {{end}}
 `

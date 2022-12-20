@@ -7,9 +7,8 @@ import (
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
-// protoc-gen-go-http 工具版本
-// 与 GalaxyMicroVersion 保持一致
-const version = "v0.0.1"
+// Version protoc-gen-go-http 工具版本
+const Version = "v0.0.2"
 
 func main() {
 	// 1. 传参定义
