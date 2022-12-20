@@ -35,7 +35,7 @@ type methodDesc struct {
 // 提前写好模板文件，然后拿到所有需要的变量，进行模板渲染，写入文件
 func (s *serviceDesc) execute() string {
 	buf := new(bytes.Buffer)
-	tmpl, err := template.New("http_server").Parse(strings.TrimSpace(ginTemplate))
+	tmpl, err := template.New("http_server").Parse(strings.TrimSpace(httpCodeTmpl))
 	if err != nil {
 		panic(err)
 	}

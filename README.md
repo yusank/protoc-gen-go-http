@@ -23,5 +23,5 @@ click [here](https://yusank.github.io/posts/go-protoc-http/) to learn how to dev
 
 ## TODO
 
-- [ ] support [validate](https://github.com/envoyproxy/protoc-gen-validate)
-- [ ] gen client code.
+- [x] support [validate](https://github.com/envoyproxy/protoc-gen-validate)
+- [x] gen client code.
