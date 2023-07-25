@@ -7,7 +7,7 @@ var httpCodeTmpl = `
 {{$svrName := .ServiceName}}
 {{$validate := .GenValidate}}
 
-// 这里定义 handler interface
+// {{.ServiceType}}HTTPHandler defines {{.ServiceType}}Server http handler
 type {{.ServiceType}}HTTPHandler interface {
 {{- range .Methods}}
     {{.Name}}(context.Context, *{{.Request}}) (*{{.Reply}}, error)
@@ -15,7 +15,6 @@ type {{.ServiceType}}HTTPHandler interface {
 }
 
 // Register{{.ServiceType}}HTTPHandler define http router handle by gin.
-// 注册路由 handler
 func Register{{.ServiceType}}HTTPHandler(g *gin.RouterGroup, srv {{.ServiceType}}HTTPHandler) {
 {{- range .Methods}}
     g.{{.Method}}("{{.Path}}", _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv))
@@ -28,9 +27,9 @@ type Validator interface {
 }
 {{end}}
 
-// 定义 handler
-// 遍历之前解析到所有 rpc 方法信息
 {{range .Methods}}
+// _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler is gin http handler to handle
+// http request [{{.Method}}] {{.Path}}.
 func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPHandler) func(c *gin.Context) {
     return func(c *gin.Context) {
         var (
@@ -77,7 +76,11 @@ type {{.ServiceType}}HTTPClientImpl struct {
     clientOpts []phttp.ClientOption
 }
 
-func New{{.ServiceType}}HTTPClient(cli *http.Client, opts ...phttp.ClientOption) ({{.ServiceType}}HTTPClient, error) {
+func New{{.ServiceType}}HTTPClient(baseUrl string, cli *http.Client, opts ...phttp.ClientOption) ({{.ServiceType}}HTTPClient, error) {
+    if baseUrl == "" {
+        return nil, errors.New("base url is empty")
+    }
+
     c := &{{.ServiceType}}HTTPClientImpl{
         clientOpts: opts,
     }
@@ -88,6 +91,7 @@ func New{{.ServiceType}}HTTPClient(cli *http.Client, opts ...phttp.ClientOption)
     }
 
     c.cli = restyv2.NewWithClient(hc)
+    c.cli.SetBaseURL(baseUrl)
     for _, opt := range opts {
         if err := opt.Apply(c.cli);err != nil {
             return nil, err

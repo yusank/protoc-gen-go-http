@@ -2,10 +2,11 @@ package greeter
 
 import (
 	"context"
-	"net/http"
+	"errors"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	restyv2 "github.com/go-resty/resty/v2"
 	"google.golang.org/grpc"
 
 	v1 "github.com/yusank/protoc-gen-go-http/example/greeter/v1"
@@ -32,14 +33,29 @@ func register() {
 }
 
 func callAsClient() {
-	cli, err := v1.NewHelloHTTPClient(nil, phttp.Retry(3, time.Millisecond*100))
+	opt := func(c *restyv2.Client) error {
+		c.SetRetryCount(3)
+		c.SetRetryWaitTime(time.Millisecond * 100)
+		return nil
+	}
+	cli, err := v1.NewHelloHTTPClient("http://127.0.0.1:8080", nil, phttp.ApplyToClient(opt))
 	if err != nil {
 		return
 	}
 
-	h := http.Header{}
-	h.Set("custom-key", "protoc")
-	rsp, err := cli.Add(context.Background(), &v1.AddRequest{}, phttp.Header(h))
+	reqOpt := func(r *restyv2.Request) error {
+		r.SetHeader("custom-header", "proto-gen-go-http")
+		return nil
+	}
+	respOpt := func(r *restyv2.Response) error {
+		v := r.Header().Get("custom-header")
+		if v != "proto-gen-go-http" {
+			return errors.New("invalid custom-header")
+		}
+
+		return nil
+	}
+	rsp, err := cli.Add(context.Background(), &v1.AddRequest{}, phttp.Before(reqOpt), phttp.After(respOpt))
 	if err != nil {
 		return
 	}
