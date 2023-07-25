@@ -1,10 +1,6 @@
 package http
 
 import (
-	"net/http"
-	"strings"
-	"time"
-
 	restyv2 "github.com/go-resty/resty/v2"
 )
 
@@ -13,50 +9,53 @@ type CallOption interface {
 	After(rsp *restyv2.Response) error
 }
 
-func Header(h http.Header) CallOption {
-	return HeaderCallOption{h: h}
+type baseCallOption struct {
+	before func(req *restyv2.Request) error
+	after  func(rsp *restyv2.Response) error
 }
 
-type HeaderCallOption struct {
-	onReq bool
-	h     http.Header
-}
-
-func (h HeaderCallOption) Before(req *restyv2.Request) error {
-	if h.onReq {
-		req.SetHeaderMultiValues(h.h)
-	}
-
-	return nil
-}
-
-func (h HeaderCallOption) After(rsp *restyv2.Response) error {
-	if !h.onReq {
-		for s, ss := range h.h {
-			rsp.Header().Add(s, strings.Join(ss, ","))
-		}
+func (b baseCallOption) Before(req *restyv2.Request) error {
+	if b.before != nil {
+		return b.before(req)
 	}
 	return nil
+}
+
+func (b baseCallOption) After(rsp *restyv2.Response) error {
+	if b.after != nil {
+		return b.after(rsp)
+	}
+	return nil
+}
+
+// Before and After is a shortcut for baseCallOption
+
+// Before is a shortcut for baseCallOption with only before func
+func Before(f func(req *restyv2.Request) error) CallOption {
+	return baseCallOption{before: f}
+}
+
+// After is a shortcut for baseCallOption with only after func
+func After(f func(rsp *restyv2.Response) error) CallOption {
+	return baseCallOption{after: f}
 }
 
 type ClientOption interface {
 	Apply(c *restyv2.Client) error
 }
 
-func Retry(times int, wait time.Duration) ClientOption {
-	return RetryClientOption{
-		times:        times,
-		waitDuration: wait,
+type baseClientOption struct {
+	apply func(c *restyv2.Client) error
+}
+
+func (b baseClientOption) Apply(c *restyv2.Client) error {
+	if b.apply != nil {
+		return b.apply(c)
 	}
-}
-
-type RetryClientOption struct {
-	times        int
-	waitDuration time.Duration
-}
-
-func (r RetryClientOption) Apply(c *restyv2.Client) error {
-
-	c.SetRetryCount(r.times).SetRetryWaitTime(r.waitDuration)
 	return nil
+}
+
+// ApplyToClient is a shortcut for baseClientOption
+func ApplyToClient(f func(c *restyv2.Client) error) ClientOption {
+	return baseClientOption{apply: f}
 }
